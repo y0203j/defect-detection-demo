@@ -1,0 +1,8 @@
+torch
+torchvision
+segmentation-models-pytorch
+albumentations
+numpy
+pandas
+matplotlib
+Pillow
