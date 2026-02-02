@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-multipart
+torch
+numpy
+pillow
+segmentation-models-pytorch
+albumentations
+timm==0.9.7

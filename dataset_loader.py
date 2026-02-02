@@ -1,10 +1,10 @@
 import os
 from PIL import Image
 import numpy as np
-from torch.utils.data import Dataset as BaseDataset
+from torch.utils.data import Dataset
 import albumentations as albu
 
-class DefectDataset(BaseDataset):
+class DefectDataset(Dataset):
     
     def __init__(self, images_dir, masks_dir, augmentation=None, preprocessing=None):
         self.ids = os.listdir(images_dir)
