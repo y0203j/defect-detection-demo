@@ -7,16 +7,18 @@ The goal is to identify defective regions in individual print layers using image
 
 ---
 
-## Why This Project
+## Introduction
 
-This project is designed to mirror real-world industrial ML workflows, where labels are imperfect, data is noisy, and models must balance performance with deployability on edge hardware.
+This repository is a compact, hands-on project designed to showcase the skills expected of a junior ML engineer at Additive Assurance. It focuses on image-based semantic segmentation for defect detection in powder bed fusion (PBF) layer images and covers the full ML lifecycle: data preparation, model training, quantization, and deployment.
+
+The project includes training and benchmarking pipelines, along with a minimal FastAPI + Docker deployment to demonstrate how trained models integrate into a production software stack.
 
 ---
 
 
 ## Key Features
 
-- ⁠**Architecture:** U-Net with a *MobileNetV2* encoder (Pre-trained on ImageNet). This reflects a pratical compromise between performance and deployability.
+- ⁠**Architecture:** U-Net with a *MobileNetV2* encoder (Pre-trained on ImageNet). This reflects a practical compromise between performance and deployability.
 - **Synthetic Data Engineering:** Includes an automated pipeline to generate synthetic ground-truth masks from raw layer imagery using computer vision thresholding.
 - ⁠**Hardware Acceleration:** Supports CUDA and Apple Metal (MPS) training. Achieving up to 96.69% recall on GPU-trained runs.
 - ⁠**Quantization:** Implements Dynamic Quantization (Post-Training), benchmarking a 1.05x–1.10x reduction in inference latency on CPU.
@@ -26,10 +28,10 @@ This project is designed to mirror real-world industrial ML workflows, where lab
 ## Tech Stack
 
 - **Core:** Python, PyTorch
-- **data Preprocesing:** Pillow
-- ⁠**Augmentation:** Albumentations
-- ⁠**Architecture:** Segmentation Models PyTorch
-- ⁠**Deployment:** Quantization
+- **Data & Utilities:** NumPy, Pillow, Pandas
+- **Augmentation:** Albumentations
+- **Modeling & Tooling:** Segmentation-Models-Pytorch, Timm
+- **Deployment:** FastAPI, Uvicorn, Docker (for containerization)
 
 ---
 
@@ -37,27 +39,30 @@ This project is designed to mirror real-world industrial ML workflows, where lab
 
 ```text
 defect-detection-demo/
-├── data/
-│   ├── train_images/          # Filtered input images (Layer "B" - After Laser)
-│   └── train_masks/           # Auto-generated binary masks
-├── dataset_loader.py          # Custom PyTorch Dataset with Robust Augmentation
-├── train_and_quantize.py      # Main pipeline: Training -> Evaluation -> Quantization
-├── train_and_quantize_gpu.py  # Main pipeline: Training -> Evaluation -> Quantization GPU version
-├── setup_data.py              # Data Engineering script (Filtering & Mask Gen)
-└── requirements.txt           # Dependencies
+├── data/                      # Raw and processed images
+├── dataset_loader.py          # PyTorch Dataset + Augmentation & Preprocessing
+├── setup_data.py              # Filters raw files + Generates synthetic masks
+├── train_and_quantize.py      # CPU-friendly training + Quantization flow
+├── train_and_quantize_gpu.py  # GPU/MPS training + Benchmarking
+├── defect_model_float32.pth   # Example trained artifact
+├── defect_model_quantized.pth # Quantized Artifact
+├── requirements.txt           # Project Dependencies
+└── deploy/                    # FastAPI demo + Dockerfile for deployment
+    ├── deployapp.py
+    ├── static/
+    └── Dockerfile
 ```
 
 ---
 
 ## Quick Start
 
-1.Environment Setup
-##### Create virtual environment
+1. Create & activate a virtual environment
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 ```
-##### Install dependencies
+2. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
@@ -67,17 +72,17 @@ The public dataset contains noise (recoater images, powder bed images). Run the 
 ```bash
 python setup_data.py
 ```
-Output: Scans raw data, creates data/train_images and data/train_masks.
-
-3.Training & Quantization
-Run the main pipeline. This will:
-1.Train the U-Net for 5 Epochs.
-2.Save the full precision model (defect_model_float32.pth).
-3.Quantize the model to Int8.
-4.Benchmark the speedup (Latency test).
+4. Run a short training experiment (CPU)
 ```bash
-python train_and_quantize.py or
-python train_and_quantize_gpu.py
+python train_and_quantize.py
+```
+5. Run the demo service (from the `deploy/` folder)
+```bash
+cd deploy
+python3 -m venv venv && source venv/bin/activate
+pip install -r deployrequirements.txt
+uvicorn deployapp:app --host 0.0.0.0 --port 8001
+# open http://localhost:8001/
 ```
 
 ---
@@ -114,20 +119,31 @@ The GPU-accelerated run achieved a **Recall of 0.967**, meaning the model detect
 
 ---
 
+## End-to-End ML Lifecycle Coverage
+
+This project demonstrates hands-on involvement across the full ML lifecycle:
+- Raw industrial image filtering and preprocessing
+- Weakly supervised label generation using classical computer vision
+- Deep learning model training and evaluation for semantic segmentation
+- Hardware-aware benchmarking on CPU, GPU, and MPS
+- Edge-oriented optimisation via post-training quantization
+- Model integration into a production-style FastAPI service
+
+---
+
 ## Analysis & Future Work
+
 1.This prototype currently implements Dynamic Quantization, which primarily targets `Linear` and `RNN` layers in PyTorch. Since the MobileNetV2 backbone is composed almost entirely of Convolutional (`Conv2d`) layers, the Dynamic Quantization engine bypasses the majority of the network, resulting in minimal compression.To achieve the compression goal, the pipeline requires upgrading to Post-training Static Quantization.
 
-2.The recall (96.69%) is pretty good. For further improvement, precision-recall curve is idea to dynamically tune the decision threshold (currently 0.5) for specific manufacture floor requirements.
+2.The recall (96.69%) is pretty good. For further improvement, precision-recall curve would be idea to dynamically tune the decision threshold (currently 0.5) for specific manufacturing floor requirements.
 
 ---
 
-**Author:** JY
+## Web Demo & Accessibility Considerations
 
----
+To demonstrate real-world integration and usability, the project includes an accessible web-based demo built with FastAPI and Docker.
 
-## Accessible Web Demo (new)
-
-An accessible single-page demo is included under `deploy/static/index.html`. It provides a keyboard-friendly, screen-reader-friendly interface that:
+A single-page demo is included under `deploy/static/index.html`. It provides a keyboard-friendly, screen-reader-friendly interface that:
 
 - Lets you upload an image and see a pass/fail result announced (ARIA live regions).
 - Shows a visual overlay image with detected defect areas (red overlay) and a yellow bounding box for the detected region.
@@ -146,7 +162,7 @@ uvicorn deployapp:app --host 0.0.0.0 --port 8000
 
 2. Open `http://localhost:8000/` in a browser. Use the file picker, hit `Analyze`, and the UI will display results and an overlay.
 
-Docker (optional):
+3. Docker (optional):
 
 ```bash
 cd deploy
@@ -154,9 +170,12 @@ docker build -t defect-deploy .
 docker run -p 8000:8000 defect-deploy
 ```
 
-Notes:
-- The API returns `mask_image` as a small PNG overlay embedded as a data URL, plus `bbox` coordinates where defects were found.
-- For accessibility testing, run Lighthouse (Accessibility), Pa11y, or manual checks with VoiceOver/NVDA.
+ **Notes:** 
+- The Docker image was built locally, pushed to Docker Hub, and successfully pulled and run on a separate machine.
+- This validates environment reproducibility and portability across systems.
 
 ---
 
+**Author:** JY
+
+---
