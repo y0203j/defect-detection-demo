@@ -27,4 +27,3 @@ Accessibility
 
 - The demo uses semantic HTML and ARIA live regions to announce results.
 - The overlay PNG is embedded in the JSON response as a `mask_image` data URL.
-- Use Lighthouse / Pa11y or screen readers (VoiceOver/NVDA) to validate accessibility.
