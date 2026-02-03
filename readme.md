@@ -22,7 +22,7 @@ The project includes training and benchmarking pipelines, along with a minimal F
 - **Synthetic Data Engineering:** Includes an automated pipeline to generate synthetic ground-truth masks from raw layer imagery using computer vision thresholding.
 - ⁠**Hardware Acceleration:** Supports CUDA and Apple Metal (MPS) training. Achieving up to 96.69% recall on GPU-trained runs.
 - ⁠**Quantization:** Implements Dynamic Quantization (Post-Training), benchmarking a 1.05x–1.10x reduction in inference latency on CPU.
-_ **Deployment:** Packaged the model behind a lightweight FastAPI service and validated Docker image portability by running the container on a separate machine.
+- **Deployment:** Packaged the model behind a lightweight FastAPI service and validated Docker image portability by running the container on a separate machine.
 
 ---
 
