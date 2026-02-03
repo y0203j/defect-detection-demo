@@ -67,7 +67,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-2.Data Preparation
+3. Data Preparation
 The public dataset contains noise (recoater images, powder bed images). Run the setup script to filter for "After Laser" melt pool images and generate synthetic training labels. 
 ```bash
 python setup_data.py
