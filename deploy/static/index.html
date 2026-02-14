@@ -3,24 +3,61 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Defect Detector — Demo</title>
-  <link rel="stylesheet" href="/static/styles.css">
+  <title>Defect Detector V2 — Multi-Angle</title>
+  <link rel="stylesheet" href="/static/styles_update.css">
+  <style>
+    /*inline styles for the new multi-file input layout */
+    .file-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 20px;
+        border: 1px solid #eee;
+        padding: 15px;
+        border-radius: 6px;
+        background-color: #fcfcfc;
+    }
+    .file-input-row {
+        display: flex;
+        flex-direction: column;
+    }
+    .file-input-row label {
+        font-weight: 500;
+        font-size: 0.9rem;
+        margin-bottom: 4px;
+        color: #555;
+    }
+  </style>
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
   <header>
-    <h1>Defect Detector</h1>
-    <p class="lead">Accessible demo — upload a layer image and get a pass/fail + defect overlay.</p>
+    <h1>Defect Detector V2</h1>
+    <p class="lead">Photometric Stereo Defect Detection (Requires Angles A, B, and C)</p>
   </header>
 
   <main id="main">
     <form id="uploadForm" aria-labelledby="desc">
-      <p id="desc">Upload a single layer image. Results are announced to assistive tech.</p>
+      <p id="desc">Upload the complete layer set (3 images) to analyze for defects.</p>
 
-      <label for="file">Image file</label>
-      <input id="file" name="file" type="file" accept="image/*" required aria-required="true">
+      <div class="file-group">
+          <div class="file-input-row">
+            <label for="file_a">Angle A (Left Light):</label>
+            <input id="file_a" name="file_a" type="file" accept="image/*" required>
+          </div>
+          
+          <div class="file-input-row">
+            <label for="file_b">Angle B (Top/Main Light):</label>
+            <input id="file_b" name="file_b" type="file" accept="image/*" required>
+          </div>
+          
+          <div class="file-input-row">
+            <label for="file_c">Angle C (Right Light):</label>
+            <input id="file_c" name="file_c" type="file" accept="image/*" required>
+          </div>
+      </div>
 
-      <button id="submit" type="submit">Analyze</button>
+      <button id="submit" type="submit">Analyze Layer</button>
     </form>
 
     <div id="status" class="status" role="status" aria-live="polite"></div>
@@ -35,7 +72,7 @@
   </main>
 
   <footer>
-    <p>Tip: Use keyboard to tab between controls. For more info, see the repository README.</p>
+    <p>System v2.0 | Powered by Multi-Channel MobileNetV2</p>
   </footer>
 
 <script>
@@ -47,14 +84,23 @@ const overlayImg = document.getElementById('overlayImg');
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   results.innerHTML = '';
-  status.textContent = 'Analyzing…';
+  status.textContent = 'Analyzing multi-angle data…';
 
-  const fileEl = document.getElementById('file');
-  const file = fileEl.files[0];
-  if (!file) { status.textContent = 'Please choose a file.'; return; }
+  //get all 3 files
+  const fileA = document.getElementById('file_a').files[0];
+  const fileB = document.getElementById('file_b').files[0];
+  const fileC = document.getElementById('file_c').files[0];
+
+  if (!fileA || !fileB || !fileC) { 
+      status.textContent = 'Please choose all three image angles (A, B, C).'; 
+      return; 
+  }
 
   const fd = new FormData();
-  fd.append('file', file, file.name);
+  //keys must match FastAPI parameters
+  fd.append('file_a', fileA);
+  fd.append('file_b', fileB);
+  fd.append('file_c', fileC);
 
   try {
     const r = await fetch('/predict', { method: 'POST', body: fd });
@@ -65,16 +111,22 @@ form.addEventListener('submit', async (e) => {
     }
     const data = await r.json();
 
-    status.textContent = data.is_defective ? 'Defect detected' : 'No defect detected';
+    status.textContent = data.is_defective ? 'Defect Detected!' : 'Layer is Clean';
+    if(data.is_defective) status.style.color = '#d93025';
+    else status.style.color = '#188038';
 
-    // summary for screen readers
-    results.innerHTML = `\n      <p><strong>File:</strong> ${data.filename}</p>\n      <p><strong>Defective:</strong> ${data.is_defective}</p>\n      <p><strong>Max Confidence:</strong> ${data.max_confidence}</p>\n      <p><strong>Defect area (%):</strong> ${data.defect_area_percentage}</p>\n      <p><strong>BBox:</strong> ${data.bbox ? data.bbox.join(', ') : 'None'}</p>\n    `;
+    //summary for screen readers and display
+    results.innerHTML = `
+      <p><strong>File ID:</strong> ${data.filename}</p>
+      <p><strong>Status:</strong> ${data.is_defective ? 'FAIL' : 'PASS'}</p>
+      <p><strong>Confidence:</strong> ${(data.max_confidence * 100).toFixed(2)}%</p>
+      <p><strong>Defect Area:</strong> ${data.defect_area_percentage}%</p>
+    `;
 
     if (data.mask_image) {
       overlayImg.src = data.mask_image;
       overlayImg.alt = `Overlay showing defects for ${data.filename}`;
       overlayImg.style.display = 'block';
-      overlayImg.setAttribute('aria-hidden', 'false');
     } else {
       overlayImg.style.display = 'none';
     }

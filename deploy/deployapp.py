@@ -11,9 +11,9 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageDraw
 
 #initialize the API
-app = FastAPI(title="Defect Detector")
+app = FastAPI(title="Defect Detector V2 (Multi-Angle)")
 
-#serve static UI under /static and an index at /
+#serve static UI
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", include_in_schema=False)
@@ -35,34 +35,63 @@ except Exception as e:
     print(f"❌ Failed to load model: {e}")
     model = None
 
-#preprocessing
+#preprocessing from training
 preprocessing_fn = smp.encoders.get_preprocessing_fn(ENCODER, ENCODER_WEIGHTS)
 
-def preprocess_image(image_bytes):
-    """Return (tensor, original PIL image)."""
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    image_np = np.array(image)
+def preprocess_triple_images(bytes_a, bytes_b, bytes_c):
+    """
+    Load 3 images (A, B, C), convert to Grayscale, and stack them.
+    Returns: (tensor, original_b_image_for_overlay)
+    """
+    # Load all three as grayscale
+    img_a = Image.open(io.BytesIO(bytes_a)).convert("L")
+    img_b = Image.open(io.BytesIO(bytes_b)).convert("L")
+    img_c = Image.open(io.BytesIO(bytes_c)).convert("L")
 
+    #basic validation (ensure sizes match)
+    if img_a.size != img_b.size or img_b.size != img_c.size:
+        pass
+
+    #convert to numpy
+    np_a = np.array(img_a)
+    np_b = np.array(img_b)
+    np_c = np.array(img_c)
+
+    #stack: (H, W, 3) -> Channel 0=a, 1=b, 2=c
+    #matches the training logic exactly
+    stacked_image = np.dstack((np_a, np_b, np_c))
+
+    #apply preprocessing
     transform = albu.Compose([
         albu.Lambda(image=preprocessing_fn),
         albu.Lambda(image=lambda x, **k: x.transpose(2, 0, 1).astype('float32'))
     ])
-
-    processed = transform(image=image_np)['image']
+    
+    processed = transform(image=stacked_image)['image']
     tensor = torch.from_numpy(processed).unsqueeze(0)
-    return tensor, image
+    
+    #return tensor for model, and img_b (converted to RGB) for visual overlay
+    return tensor, img_b.convert("RGB")
 
-#API endpoint
 @app.post("/predict")
-async def predict_defect(file: UploadFile = File(...)):
+async def predict_defect(
+    file_a: UploadFile = File(...),
+    file_b: UploadFile = File(...),
+    file_c: UploadFile = File(...)
+):
     """
-    Detect defects; returns JSON with overlay image (data URL) and bbox.
+    Detect defects using Photometric Stereo Stacking (3 Angles).
     """
     if model is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
-    image_bytes = await file.read()
-    input_tensor, orig_image = preprocess_image(image_bytes)
+    #read all three files
+    bytes_a = await file_a.read()
+    bytes_b = await file_b.read()
+    bytes_c = await file_c.read()
+
+    #preprocess using multi-channel logic
+    input_tensor, orig_image = preprocess_triple_images(bytes_a, bytes_b, bytes_c)
     input_tensor = input_tensor.to(DEVICE)
 
     #inference
@@ -70,7 +99,7 @@ async def predict_defect(file: UploadFile = File(...)):
         logits = model(input_tensor)
         probs = logits.sigmoid().cpu().squeeze().numpy()
 
-    # normalize shape to 2D mask
+    #normalize shape to 2D mask
     if probs.ndim == 3:
         probs = probs[0]
 
@@ -79,7 +108,7 @@ async def predict_defect(file: UploadFile = File(...)):
     defect_area_ratio = float(mask_bool.mean())
     is_defective = max_defect_prob > 0.5
 
-    # bounding box in mask coords
+    #bounding Box Calculation
     ys, xs = np.where(mask_bool)
     if len(xs) == 0 or len(ys) == 0:
         bbox = None
@@ -88,13 +117,13 @@ async def predict_defect(file: UploadFile = File(...)):
         y_min, y_max = int(ys.min()), int(ys.max())
         bbox = [x_min, y_min, x_max, y_max]
 
-    # create overlay PNG (red translucent mask + bbox)
+    #create overlay (Red Mask on Image B)
     data_url = None
     try:
         overlay = orig_image.convert('RGBA')
         mask_img = Image.fromarray((mask_bool * 255).astype('uint8'))
 
-        # resize mask to match overlay if necessary and scale bbox
+        #resize mask to match overlay if necessary
         mask_w, mask_h = mask_img.size
         overlay_w, overlay_h = overlay.size
         if (mask_w, mask_h) != (overlay_w, overlay_h):
@@ -127,7 +156,7 @@ async def predict_defect(file: UploadFile = File(...)):
         data_url = None
 
     return {
-        "filename": file.filename,
+        "filename": file_b.filename, #use the 'B' file as the main identifier
         "is_defective": bool(is_defective),
         "max_confidence": round(max_defect_prob, 4),
         "defect_area_percentage": round(defect_area_ratio * 100, 4),
@@ -137,7 +166,4 @@ async def predict_defect(file: UploadFile = File(...)):
 
 @app.get("/health")
 def health():
-    loaded = model is not None
-    if not loaded:
-        return JSONResponse(status_code=503, content={"status": "error", "model_loaded": False})
-    return {"status": "ok", "model_loaded": True}
+    return {"status": "ok", "model_loaded": model is not None}

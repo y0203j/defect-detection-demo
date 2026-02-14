@@ -1,55 +1,45 @@
-## Defect Detection
+# End-to-End Defect Detection with Multi-Angle Imaging
 
-This project explores an end-to-end deep learning pipeline for detecting manufacturing defects in powder bed fusion (PBF) layer images.
-The goal is to identify defective regions in individual print layers using image-based semantic segmentation.
+This project demonstrates an end-to-end deep learning pipeline for detecting manufacturing defects in powder bed fusion (PBF) layer images. It leverages a multi-angle photometric stereo technique, using three images of the same location under different lighting to robustly identify defect regions.
 
-**Data source:** [Kaggle: Process Monitoring in Additive Manufacturing](https://www.kaggle.com/datasets/programmer3/process-monitoring-in-additive-manufacturing/data)
-
----
-
-## Introduction
-
-This repository is a compact, hands-on project designed to showcase the skills expected of a junior ML engineer at Additive Assurance. It focuses on image-based semantic segmentation for defect detection in powder bed fusion (PBF) layer images and covers the full ML lifecycle: data preparation, model training, quantization, and deployment.
-
-The project includes training and benchmarking pipelines, along with a minimal FastAPI + Docker deployment to demonstrate how trained models integrate into a production software stack.
+This repository is a compact, hands-on project designed to showcase the skills expected of a junior ML engineer. It covers the full ML lifecycle: data preparation, model training, quantization, and deployment.
 
 ---
-
 
 ## Key Features
 
-- ⁠**Architecture:** U-Net with a *MobileNetV2* encoder (Pre-trained on ImageNet). This reflects a practical compromise between performance and deployability.
-- **Synthetic Data Engineering:** Includes an automated pipeline to generate synthetic ground-truth masks from raw layer imagery using computer vision thresholding.
-- ⁠**Hardware Acceleration:** Supports CUDA and Apple Metal (MPS) training. Achieving up to 96.69% recall on GPU-trained runs.
-- ⁠**Quantization:** Implements Dynamic Quantization (Post-Training), benchmarking a 1.05x–1.10x reduction in inference latency on CPU.
-- **Deployment:** Packaged the model behind a lightweight FastAPI service and validated Docker image portability by running the container on a separate machine.
+-   **Architecture:** U-Net with a **MobileNetV2** encoder (Pre-trained on ImageNet), offering a practical balance between performance and deployability.
+-   **Multi-Angle Data Fusion:** Stacks three single-channel images (captured under different lighting angles) into a 3-channel tensor, providing rich topographical information to the model.
+-   **Synthetic Data Engineering:** Includes an automated pipeline to generate synthetic ground-truth masks from raw layer imagery using computer vision thresholding.
+-   **Hardware Acceleration:** Supports CUDA and Apple Metal (MPS) for training.
+-   **Quantization:** Implements Post-Training Dynamic Quantization to benchmark inference latency improvements.
+-   **Deployment:** The trained model is packaged into a lightweight FastAPI service, with a Dockerfile for portability and validation.
 
 ---
 
 ## Tech Stack
 
-- **Core:** Python, PyTorch
-- **Data & Utilities:** NumPy, Pillow, Pandas
-- **Augmentation:** Albumentations
-- **Modeling & Tooling:** Segmentation-Models-Pytorch, Timm
-- **Deployment:** FastAPI, Uvicorn, Docker (for containerization)
+-   **Core:** Python, PyTorch
+-   **Data & Utilities:** NumPy, Pillow, OpenCV, Pandas
+-   **Augmentation:** Albumentations
+-   **Modeling & Tooling:** Segmentation-Models-Pytorch, Timm
+-   **Deployment:** FastAPI, Uvicorn, Docker
 
 ---
 
 ## Project Structure
 
 ```text
-defect-detection-demo/
+detect-detection-deploy-multiangle/
 ├── data/                      # Raw and processed images
-├── dataset_loader.py          # PyTorch Dataset + Augmentation & Preprocessing
-├── setup_data.py              # Filters raw files + Generates synthetic masks
-├── train_and_quantize.py      # CPU-friendly training + Quantization flow
-├── train_and_quantize_gpu.py  # GPU/MPS training + Benchmarking
+├── dataset_loader_ma.py       # PyTorch Dataset + Augmentation & Preprocessing
+├── setup_data_ma.py           # Filters raw files + Generates synthetic masks
+├── train_and_quantize_ma.py   # Training + Quantization flow
 ├── defect_model_float32.pth   # Example trained artifact
 ├── defect_model_quantized.pth # Quantized Artifact
 ├── requirements.txt           # Project Dependencies
 └── deploy/                    # FastAPI demo + Dockerfile for deployment
-    ├── deployapp.py
+    ├── deployapp_ma.py
     ├── static/
     └── Dockerfile
 ```
@@ -58,125 +48,84 @@ defect-detection-demo/
 
 ## Quick Start
 
-1. Create & activate a virtual environment
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-2. Install dependencies
-```bash
-pip install -r requirements.txt
-```
-
-3. git sData Preparation
-The public dataset contains noise (recoater images, powder bed images). Run the setup script to filter for "After Laser" melt pool images and generate synthetic training labels. 
-```bash
-python setup_data.py
-```
-4. Run a short training experiment (CPU)
-```bash
-python train_and_quantize.py
-```
-5. Run the demo service (from the `deploy/` folder)
-```bash
-cd deploy
-python3 -m venv venv && source venv/bin/activate
-pip install -r deployrequirements.txt
-uvicorn deployapp:app --host 0.0.0.0 --port 8001
-# open http://localhost:8001/
-```
-
----
-
-## Results & Benchmarks
-
-### 1. Training Performance Comparison
-
-| Metric | GPU Training (Nvidia 3090) | CPU Training |
-| :--- | :--- | :--- |
-| **Data Scale** | **Full Dataset** (~500 images) | **Subset** (30 images, Low-Memory Mode) |
-| **Training Time** | **23.8 mins** | 64.8 mins |
-| **Final Dice Loss** | **0.1308** | 0.1916 |
-| **Final Recall** | **96.69%** | 89.18% |
-| **Converged?** | Yes | No (Needs more data/time) |
-
-**Key Insight:**
-The GPU-accelerated run achieved a **Recall of 0.967**, meaning the model detects **96.7% of all defects**.
-
-### 2. Quantization Impact (Inference)
-
-**Results observed on local hardware (MacBook Air M4):**
-
-| Metric | Original (Float32) | Quantized (Int8) | Improvement |
-| :--- | :--- | :--- | :--- |
-| **Model Size** | ~26 MB | ~26 MB | No Change |
-| **Inference Latency** | ~193.58 ms | ~184.54 ms | 1.05x Faster |
-
-**Results observed on Nvidia 3090:**
-| Metric | Original (Float32) | Quantized (Int8) | Improvement |
-| :--- | :--- | :--- | :--- |
-| **Model Size** | ~26 MB | ~26 MB | No Change |
-| **Inference Latency** | ~44.59 ms | ~40.52 ms | 1.10x Faster |
+1.  **Create & activate a virtual environment**
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+2.  **Install dependencies**
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  **Data Preparation**
+    The script filters raw files and generates synthetic training labels from the multi-angle images.
+    ```bash
+    python setup_data_ma.py
+    ```
+4.  **Run a training experiment**
+    ```bash
+    python train_and_quantize_ma.py
+    ```
+5.  **Run the demo service** (from the `deploy/` folder)
+    ```bash
+    cd deploy
+    python3 -m venv venv && source venv/bin/activate
+    pip install -r deployrequirements.txt
+    uvicorn deployapp_ma:app --host 0.0.0.0 --port 8001
+    # open http://localhost:8001/
+    ```
 
 ---
 
-## End-to-End ML Lifecycle Coverage
+## Modeling Insights & Results
 
-This project demonstrates hands-on involvement across the full ML lifecycle:
-- Raw industrial image filtering and preprocessing
-- Weakly supervised label generation using classical computer vision
-- Deep learning model training and evaluation for semantic segmentation
-- Hardware-aware benchmarking on CPU, GPU, and MPS
-- Edge-oriented optimisation via post-training quantization
-- Model integration into a production-style FastAPI service
+### 1. Handling Extreme Class Imbalance
+
+LPBF defect detection is an extremely imbalanced problem—most pixels are background. To address this, I used a composite loss function:
+> I handle this using **Dice plus BCE loss**. Dice forces the model to focus on defect overlap, while BCE stabilizes pixel-level learning.
+> This gives strong recall without sacrificing mask quality.
+
+To further combat class imbalance, the `pos_weight` argument in the BCE loss was critical. By increasing it from an initial value of 5.0 to **40.0**, the model was penalized more heavily for missing defects (false negatives).
+> This adjustment alone boosted validation recall from **0.637 to 0.777**.
+
+### 2. Evolving Mask Generation Heuristics
+
+The quality of synthetic labels is paramount.
+> When I upgraded the data representation to multi-angle stacking, I intentionally made the mask heuristic conservative. The initial **AND-based consensus** (where a pixel had to be a defect in all three images) turned out to be too strict, producing extremely sparse labels. This caused the model to converge to a trivial background-only solution.
+> I corrected this by moving to a **majority-vote heuristic** and implementing class-weighted BCE, which restored label density and stabilized training.
+
+### 3. Quantization Impact (Inference)
+
+Post-training dynamic quantization was applied to benchmark performance.
+
+**Results observed on local hardware (MacBook Air M1):**
+
+| Metric             | Original (Float32) | Quantized (Int8) | Improvement  |
+| :----------------- | :----------------- | :--------------- | :----------- |
+| **Inference Latency** | ~193.58 ms         | ~184.54 ms       | 1.05x Faster |
 
 ---
 
 ## Analysis & Future Work
 
-1.This prototype currently implements Dynamic Quantization, which primarily targets `Linear` and `RNN` layers in PyTorch. Since the MobileNetV2 backbone is composed almost entirely of Convolutional (`Conv2d`) layers, the Dynamic Quantization engine bypasses the majority of the network, resulting in minimal compression.To achieve the compression goal, the pipeline requires upgrading to Post-training Static Quantization.
+1.  **Improve Quantization:** This prototype uses Dynamic Quantization, which primarily targets `Linear` layers. Since MobileNetV2 is composed almost entirely of `Conv2d` layers, the engine bypasses most of the network, yielding minimal compression. To achieve a significant reduction in model size and latency, the pipeline should be upgraded to **Post-Training Static Quantization (PTSQ)**, which requires a calibration dataset.
 
-2.The recall (96.69%) is pretty good. For further improvement, precision-recall curve would be idea to dynamically tune the decision threshold (currently 0.5) for specific manufacturing floor requirements.
+2.  **Tune Decision Threshold:** The current recall is strong. For further optimization, a **precision-recall curve analysis** would be ideal to dynamically tune the decision threshold (currently 0.5) to meet specific manufacturing floor requirements (e.g., minimizing false negatives vs. false positives).
 
 ---
 
-## Web Demo & Accessibility Considerations
+## Web Demo & Accessibility
 
-To demonstrate real-world integration and usability, the project includes an accessible web-based demo built with FastAPI and Docker.
+A single-page demo is included under `deploy/static/index.html` to demonstrate real-world integration. It provides a keyboard-friendly, screen-reader-friendly interface that:
 
-A single-page demo is included under `deploy/static/index.html`. It provides a keyboard-friendly, screen-reader-friendly interface that:
+-   Lets you upload the three angle images and see a pass/fail result announced via ARIA live regions.
+-   Shows a visual overlay with detected defect areas.
+-   Returns a short text summary (max confidence, defect area %, bounding box) to aid assistive technologies.
 
-- Lets you upload an image and see a pass/fail result announced (ARIA live regions).
-- Shows a visual overlay image with detected defect areas (red overlay) and a yellow bounding box for the detected region.
-- Returns a short text summary (max confidence, defect area %, bounding box) to aid assistive technologies.
-
-How to run the demo locally:
-
-1. Install deploy dependencies and run the API from the `deploy/` folder:
-
+You can also run the deployment environment using Docker:
 ```bash
 cd deploy
-python3 -m venv venv && source venv/bin/activate
-pip install -r deployrequirements.txt
-uvicorn deployapp:app --host 0.0.0.0 --port 8000
+docker build -t defect-deploy-ma .
+docker run -p 8001:8000 defect-deploy-ma
 ```
-
-2. Open `http://localhost:8000/` in a browser. Use the file picker, hit `Analyze`, and the UI will display results and an overlay.
-
-3. Docker (optional):
-
-```bash
-cd deploy
-docker build -t defect-deploy .
-docker run -p 8000:8000 defect-deploy
-```
-
- **Notes:** 
-- The Docker image was built locally, pushed to Docker Hub, and successfully pulled and run on a separate machine.
-- This validates environment reproducibility and portability across systems.
-
----
-
-**Author:** JY
-
----
+**Note:** The Docker image was built locally, pushed to a private registry, and successfully run on a separate machine, validating its portability.
