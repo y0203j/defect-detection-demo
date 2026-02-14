@@ -1,0 +1,34 @@
+# Dockerfile and .dockerignore
+Dockerfile
+.dockerignore
+
+# Git
+.git
+.gitignore
+
+# Virtualenv
+.venv
+venv
+ENV
+
+# Python cache
+__pycache__
+*.pyc
+
+# IDEs
+.vscode
+.idea
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+uvicorn.log
+
+# PID files
+*.pid
+uvicorn.pid
+
+# Parent venv
+../venv
